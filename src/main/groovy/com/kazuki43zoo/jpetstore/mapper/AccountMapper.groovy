@@ -121,6 +121,16 @@ interface AccountMapper {
     ''')
     void insertSignon(Account account)
 
+    @Select('''
+        SELECT
+            COUNT(*)
+        FROM
+            SIGNON
+        WHERE
+            USERNAME = #{username}
+    ''')
+    int countByUsername(String username)
+
     @Update('''
         UPDATE ACCOUNT SET
             EMAIL = #{email},

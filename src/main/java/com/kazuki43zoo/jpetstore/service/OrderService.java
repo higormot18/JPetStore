@@ -15,6 +15,7 @@
  */
 package com.kazuki43zoo.jpetstore.service;
 
+import com.kazuki43zoo.jpetstore.component.exception.InsufficientStockException;
 import com.kazuki43zoo.jpetstore.component.exception.ResourceNotFoundException;
 import com.kazuki43zoo.jpetstore.domain.Account;
 import com.kazuki43zoo.jpetstore.domain.Item;
@@ -39,6 +40,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class OrderService {
 	private static final String ORDER_ID_SEQ_NAME = "ordernum";
+	private static final String DEFAULT_COURIER = "UPS";
+	private static final String DEFAULT_LOCALE = "CA";
+	private static final String ORDER_STATUS_PENDING = "P";
 	private final ItemMapper itemMapper;
 	private final OrderMapper orderMapper;
 	private final SequenceMapper sequenceMapper;
@@ -52,15 +56,20 @@ public class OrderService {
 		int orderId = generateOrderId();
 		order.setOrderId(orderId);
 		order.setOrderDate(LocalDateTime.now(clock));
-		order.setCourier("UPS");
-		order.setLocale("CA");
-		order.setStatus("P");
+		order.setCourier(DEFAULT_COURIER);
+		order.setLocale(DEFAULT_LOCALE);
+		order.setStatus(ORDER_STATUS_PENDING);
 
 		orderMapper.insertOrder(order);
 		orderMapper.insertOrderStatus(order);
 
 		order.getLines().forEach(x -> {
-			itemMapper.updateInventoryQuantity(x.getItemId(), x.getQuantity());
+			int updated = itemMapper.updateInventoryQuantity(
+					x.getItemId(), x.getQuantity());
+			if (updated == 0) {
+				throw new InsufficientStockException(
+						x.getItemId(), x.getQuantity());
+			}
 			x.setOrderId(orderId);
 			orderMapper.insertOrderLine(x);
 		});
@@ -87,8 +96,7 @@ public class OrderService {
 
 	private int generateOrderId() {
 		Sequence sequence = Optional.ofNullable(sequenceMapper.getSequence(ORDER_ID_SEQ_NAME))
-				.orElseThrow(() -> new RuntimeException("Error: A null sequence was returned from the database (could not get next "
-						+ ORDER_ID_SEQ_NAME + " sequence)."));
+				.orElseThrow(() -> new ResourceNotFoundException("Sequence", ORDER_ID_SEQ_NAME));
 		sequenceMapper.incrementSequence(sequence.getName());
 		return sequence.getNextId();
 	}

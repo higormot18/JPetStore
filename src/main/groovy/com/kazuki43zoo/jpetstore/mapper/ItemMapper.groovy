@@ -34,8 +34,9 @@ interface ItemMapper {
             QTY = QTY - #{increment}
         WHERE
             ITEMID = #{itemId}
+            AND QTY >= #{increment}
     ''')
-    void updateInventoryQuantity(@Param("itemId") String itemId, @Param("increment") int increment)
+    int updateInventoryQuantity(@Param("itemId") String itemId, @Param("increment") int increment)
 
     @Select('''
         SELECT

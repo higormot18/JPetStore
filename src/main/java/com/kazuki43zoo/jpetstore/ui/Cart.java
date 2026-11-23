@@ -22,6 +22,7 @@ import org.springframework.web.context.annotation.SessionScope;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,17 +38,18 @@ public class Cart implements Serializable {
 	private static final long serialVersionUID = 8329559983943337176L;
 
 	private final Map<String, CartItem> itemMap = new ConcurrentHashMap<>();
-	private final List<CartItem> itemList = new ArrayList<>();
+	private final List<CartItem> itemList =
+			Collections.synchronizedList(new ArrayList<>());
 
 	public List<CartItem> getCartItems() {
-		return itemList;
+		return Collections.unmodifiableList(new ArrayList<>(itemList));
 	}
 
 	public boolean containsByItemId(String itemId) {
 		return itemMap.containsKey(itemId);
 	}
 
-	public void addItem(Item item, boolean isInStock) {
+	public synchronized void addItem(Item item, boolean isInStock) {
 		CartItem cartItem = itemMap.get(item.getItemId());
 		if (cartItem == null) {
 			cartItem = new CartItem();
@@ -60,25 +62,31 @@ public class Cart implements Serializable {
 		cartItem.incrementQuantity();
 	}
 
-	public void removeItemById(String itemId) {
+	public synchronized void removeItemById(String itemId) {
 		Optional.ofNullable(itemMap.remove(itemId))
 				.ifPresent(itemList::remove);
 	}
 
-	public void incrementQuantityByItemId(String itemId) {
-		CartItem cartItem = itemMap.get(itemId);
-		cartItem.incrementQuantity();
+	public synchronized void incrementQuantityByItemId(String itemId) {
+		Optional.ofNullable(itemMap.get(itemId))
+				.ifPresent(CartItem::incrementQuantity);
 	}
 
-	public void setQuantityByItemId(String itemId, int quantity) {
-		CartItem cartItem = itemMap.get(itemId);
-		cartItem.setQuantity(quantity);
+	public synchronized void setQuantityByItemId(
+			String itemId, int quantity) {
+		if (quantity < 0) {
+			throw new IllegalArgumentException(
+					"A quantidade nao pode ser negativa: " + quantity);
+		}
+		Optional.ofNullable(itemMap.get(itemId))
+				.ifPresent(item -> item.setQuantity(quantity));
 	}
 
 	public BigDecimal getSubTotal() {
 		return getCartItems().stream()
-				.map(x -> x.getItem().getListPrice().multiply(new BigDecimal(x.getQuantity())))
-				.reduce(new BigDecimal(0), BigDecimal::add);
+				.map(x -> x.getItem().getListPrice()
+						.multiply(BigDecimal.valueOf(x.getQuantity())))
+				.reduce(BigDecimal.ZERO, BigDecimal::add);
 	}
 
 	public boolean isEmpty() {

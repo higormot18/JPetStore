@@ -15,6 +15,7 @@
  */
 package com.kazuki43zoo.jpetstore.service;
 
+import com.kazuki43zoo.jpetstore.component.exception.DuplicateUsernameException;
 import com.kazuki43zoo.jpetstore.domain.Account;
 import com.kazuki43zoo.jpetstore.mapper.AccountMapper;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,10 @@ public class AccountService {
 
 	@Transactional
 	public void createAccount(Account account) {
+		String username = account.getUsername();
+		if (accountMapper.countByUsername(username) > 0) {
+			throw new DuplicateUsernameException(username);
+		}
 		account.setPassword(passwordEncoder.encode(account.getPassword()));
 		accountMapper.insertAccount(account);
 		accountMapper.insertProfile(account);
